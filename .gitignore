@@ -22,3 +22,4 @@ publish/
 *.pt
 *.pth
 .DS_Store
+engines/

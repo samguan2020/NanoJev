@@ -392,6 +392,10 @@ def main():
     p.add_argument("--loss", choices=["ce", "brier", "paired_brier_pg"], default="ce")
     p.add_argument("--reward-samples", type=int, default=32)
     p.add_argument("--gradient-checkpointing", action="store_true", help="Reduce activation memory for complete long maze inputs")
+    p.add_argument("--freeze-backbone", action="store_true",
+                   help="Never unfreeze the backbone after head warmup; avoids the AdamW memory needed to "
+                        "fine-tune all backbone parameters, at the cost of a backbone that never adapts to "
+                        "this data (only the small decision head is trained). Fits small GPUs.")
     p.add_argument("--set-head", choices=["none", "attention"], help="Defaults to attention, or the warm-start checkpoint's setting")
     p.add_argument("--steps", type=int, default=300)
     p.add_argument("--head-steps", type=int, help="Defaults to12 for a new head and0 for a checkpoint warm start")
@@ -492,6 +496,7 @@ def main():
               "data_sha256": {str(f): hashlib.sha256(f.read_bytes()).hexdigest() for f in files},
               "deps": {k: importlib.metadata.version(k) for k in ("torch", "transformers", "safetensors")},
               "gpu": torch.cuda.get_device_name(0), "parameter_storage": "float32",
+              "frozen_backbone": args.freeze_backbone,
               "forward_autocast": "bfloat16" if args.precision == "bf16" else "disabled",
               "parameter_count": sum(t.numel() for t in model.parameters()),
               "train_questions": len(train), "all_train_questions": len(splits["train"]),
@@ -506,7 +511,10 @@ def main():
     dump(out / "initial_dev_metrics.json", initial)
     head = [param for name, param in model.named_parameters() if not name.startswith("backbone.")]
     body = list(model.backbone.parameters())
-    optimizer = torch.optim.AdamW([{"params": body, "lr": args.backbone_lr}, {"params": head, "lr": args.head_lr}], weight_decay=.01)
+    head_group_index = 0 if args.freeze_backbone else 1
+    param_groups = [{"params": head, "lr": args.head_lr}] if args.freeze_backbone else \
+        [{"params": body, "lr": args.backbone_lr}, {"params": head, "lr": args.head_lr}]
+    optimizer = torch.optim.AdamW(param_groups, weight_decay=.01)
     best, best_step, logs = float("inf"), None, []
     started = time.perf_counter()
     from calibrated_objectives import grouped_calibrated_loss
@@ -515,8 +523,8 @@ def main():
     for step in range(args.head_steps + args.steps):
         warm = step < args.head_steps
         for param in body:
-            param.requires_grad_(not warm)
-        optimizer.param_groups[1]["lr"] = args.head_warmup_lr if warm else args.head_lr
+            param.requires_grad_((not warm) and not args.freeze_backbone)
+        optimizer.param_groups[head_group_index]["lr"] = args.head_warmup_lr if warm else args.head_lr
         batch = random.sample(train, args.batch_questions)
         groups = pack_complete_questions(batch, args.microbatch_questions, args.max_microbatch_tokens)
         model.train(); optimizer.zero_grad(set_to_none=True)
@@ -532,7 +540,12 @@ def main():
             loss.backward(); loss_sum += float(loss.detach())
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0, error_if_nonfinite=True)
         optimizer.step()
-        item = {"step": step + 1, "phase": "head" if warm else "full", "loss": loss_sum,
+        if (step + 1) % 20 == 0:
+            # Long runs with varying candidate-path shapes fragment the CUDA caching
+            # allocator's reserved pool over time; expandable_segments isn't available
+            # on Windows, so periodically hand unused cached blocks back instead.
+            torch.cuda.empty_cache()
+        item = {"step": step + 1, "phase": "head" if warm or args.freeze_backbone else "full", "loss": loss_sum,
                 "questions": len(batch), "microbatches": len(groups), "elapsed_seconds": time.perf_counter() - started,
                 "batch_question_ids_sha256": hashlib.sha256("\n".join(ex["id"] for ex in batch).encode()).hexdigest()}
         if not warm and ((step + 1 - args.head_steps) % args.eval_every == 0 or step + 1 == args.head_steps + args.steps):
