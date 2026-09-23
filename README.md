@@ -2,185 +2,152 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
-**A 0.6B parallel decision model. States and questions in, complete probability distributions out—with zero output-token decoding.**
+**A 0.6B parallel decision model: states and questions in, complete probability distributions out. Zero output-token decoding.**
 
-[Model](https://huggingface.co/C-Tianyu/NanoJev) · [Dataset](https://huggingface.co/datasets/C-Tianyu/NanoJev-Data)
+> **New project: [JevHarness](https://github.com/TianyuCodings/JevHarness)** — Let an LLM build task-specific decision harnesses with [Jev](https://typesafe.ai/blog/introducing-system-one-models-and-jev), with optional refinement using rewards and execution traces. Includes an interactive Pokémon demo.
 
-**[Open the live side-by-side demo →](https://nanojev.tianyuchen99.chatgpt.site)**
+[Play ViZDoom](https://nanojev-dev.tianyuchen99.chatgpt.site/?autoplay=1) · [Maze & Snake](https://nanojev-dev.tianyuchen99.chatgpt.site/side-by-side?autoplay=1#maze) · [Model](https://huggingface.co/C-Tianyu/NanoJev) · [Dataset](https://huggingface.co/datasets/C-Tianyu/NanoJev-Data)
 
-## Three models, one game
+**Now playing ViZDoom:** one shared checkpoint handles Basic aiming and Predict Position's moving-target rocket shots, alongside Maze and Snake.
 
-[![Jev, NanoJev, and Untuned Qwen exploring the maze side by side](assets/side_by_side_maze.png)](https://nanojev.tianyuchen99.chatgpt.site/#maze)
+**4 tasks · 18,760 decision questions per data variant · 896 Predict Position expert episodes**
 
-[Download the maze video (MP4)](assets/side_by_side_maze.mp4) · 27 seconds · 1440 × 1120 · 30 fps
+## What's new
 
-[Play Snake](https://nanojev.tianyuchen99.chatgpt.site/#snake) · [Explore the 50×50 maze](https://nanojev.tianyuchen99.chatgpt.site/#maze) · [Recorded sources and replay checks](assets/side_by_side_data_manifest.json)
+**September 20, 2026 — One model, four games.**
 
-The standalone ChatGPT Sites demo presents **Jev, NanoJev, and Untuned Qwen** in three light panels. Playback advances by the same environment step across panels; completed runs freeze at their actual final state. Probability bars show the last decision that produced the displayed state. Shared code planning remains part of each system.
+- **ViZDoom Basic:** **128/128** test successes, compared with **56/128** for [Jev](https://typesafe.ai/blog/introducing-system-one-models-and-jev).
+- **ViZDoom Predict Position:** **27/128** test successes, up from **11/128** before this round; the matched [Jev](https://typesafe.ai/blog/introducing-system-one-models-and-jev) run also scores **11/128**. The policy learns when to turn, wait and fire at a moving target.
+- **16,333 ViZDoom questions** within an **18,760-question** mixed-task dataset per target variant, spanning train, dev, calibration, test and OOD.
+- **One model, four games:** the same step-400 checkpoint also completes the 50×50 maze in **225 attempts** and collects **30 food items** during a full 256-step Snake run.
 
-The new maze baseline is the original Qwen3-0.6B: **4,726 attempts, 2,044 collisions, goal reached**. The older maze video below keeps its original **Starting NanoJev** comparison and recorded results.
+## Three models, side by side
 
-## Recorded showcase runs
+Real browser replays of **[Jev](https://typesafe.ai/blog/introducing-system-one-models-and-jev), NanoJev and Untuned Qwen**. These animations loop automatically; click either one to open its interactive player. All four demos use the same current NanoJev checkpoint. The interactive development site currently requires access; all recordings can also be played locally using the commands below.
 
-Watch model judgments and shared code planning work together. Each game uses the same controller code across its three systems; the recordings preserve the actual actions, probabilities, and final outcomes.
+### ViZDoom Basic · Aim, then fire
 
-### Find the exit: 50×50 maze
+[![NanoJev eliminates the target with one shot while Jev and Untuned Qwen fail, shown side by side on the same game clock](assets/basic_unified_autoplay.gif)](https://nanojev-dev.tianyuchen99.chatgpt.site/?autoplay=1)
 
-[![NanoJev finds the exit in a 50×50 maze, with recorded comparison results](assets/arcade_maze.gif)](assets/arcade_maze.mp4)
+Move into position, line up the target, fire. NanoJev eliminates the target with **one shot in 1.40 s**; [Jev](https://typesafe.ai/blog/introducing-system-one-models-and-jev) and Untuned Qwen each fire **19 shots** without an elimination before the deadline. The three panels share the same game clock and show original frames and action probabilities.
 
-[Watch the MP4](assets/arcade_maze.mp4) · [Interactive replay](web/arcade.html)
+### Find the exit · 50×50 Maze
 
-The model judges four local directions. Code remembers collisions, explores untried edges, and repositions through verified open paths.
+[![Jev, current NanoJev and Untuned Qwen explore the same 50×50 maze in the live three-panel viewer](assets/maze_unified_autoplay.gif)](https://nanojev-dev.tianyuchen99.chatgpt.site/side-by-side?autoplay=1#maze)
 
-| System | Attempts | Collisions | Outcome |
-|---|---:|---:|---|
-| **NanoJev** | **244** | **36** | **Goal reached** |
-| [Jev](https://typesafe.ai/blog/introducing-system-one-models-and-jev) | 2,738 | 1,044 | Goal reached |
-| Starting NanoJev | 171 | 43 | Goal reached |
+NanoJev reaches the exit in **225 attempts**, versus **2,738** for [Jev](https://typesafe.ai/blog/introducing-system-one-models-and-jev) and **4,726** for Untuned Qwen. Each system combines local safety probabilities with the same exploration code and remembered open paths.
 
-Starting NanoJev is the earlier trained NanoJev checkpoint. The new NanoJev model uses matched local safety training.
+[Play Snake](https://nanojev-dev.tianyuchen99.chatgpt.site/side-by-side?autoplay=1#snake) · [Play Predict Position](https://nanojev-dev.tianyuchen99.chatgpt.site/predict-position?autoplay=1)
 
-### Keep growing: 12×12 Snake
+## What NanoJev does
 
-[![NanoJev grows through a complete Snake run, with recorded comparison results](assets/arcade_snake.gif)](assets/arcade_snake.mp4)
+- **Parallel decisions:** batch independent states, questions and candidate paths in one backbone forward.
+- **Dynamic candidates:** Choice returns a distribution over 2–255 supplied candidates using a shared scoring head.
+- **Boolean and ordered scores:** predict a proposition's probability, or a distribution and expectation over 2–10 ordered levels.
+- **Direct probabilities:** rank, select or sample actions without generating answer tokens.
+- **One small backbone:** Qwen3-0.6B with decision heads, reused across all four game tasks and a persistent inference service.
 
-[Watch the MP4](assets/arcade_snake.mp4) · [Interactive replay](web/arcade.html)
+Each request supplies a **state**, a **question** and its **candidates**. The backbone encodes candidate paths; shared heads produce the requested probabilities. Choice uses set attention and a softmax, Boolean uses a sigmoid, and Score returns a probability-weighted level.
 
-The common planner filters immediate collisions and finds static paths toward the visible food. The model breaks ties between the remaining actions; a single remaining action is a code-forced move. **Seed: 61005. Controller: greedy.**
+## Held-out gameplay
 
-| System | Food collected | Steps | Outcome |
-|---|---:|---:|---|
-| **NanoJev** | **27** | **256** | **Alive at horizon** |
-| [Jev](https://typesafe.ai/blog/introducing-system-one-models-and-jev) | 30 | 256 | Alive at horizon |
-| Untuned Qwen3-0.6B | 25 | 211 | Trapped |
+Successful episodes on the complete **274-case test set**, using the same observation interface, candidate actions and seeded epsilon-greedy controller across systems:
 
-Untuned Qwen uses its original pretrained weights and native language-model head, conditioned on the offered A–D answer tokens.
+| Model | Maze | Snake | Basic | Predict Position |
+|---|---:|---:|---:|---:|
+| **NanoJev** | **4/10** | **8/8** | **128/128** | **27/128** |
+| [Jev](https://typesafe.ai/blog/introducing-system-one-models-and-jev) | 7/10 | 8/8 | 56/128 | 11/128 |
+| Untuned Qwen3-0.6B | 2/10 | 0/8 | 56/128 | 11/128 |
 
-[Recorded cases and replay verification](assets/arcade_data_manifest.json) · [Eight-case controller comparison](results/arcade_controller_comparison.json)
+Test and OOD together contain **548 cases per model**. Every evaluated trajectory passes independent simulator replay. The large navigation showcases above use their displayed local-question and code-planning settings.
 
-## Features
+[Complete test and OOD results](docs/SONIC_PREDICT_POSITION_RESULTS.md) · [Training pipeline](docs/SONIC_PREDICT_POSITION.md)
 
-- **0.6B LLM backbone.** Qwen3-0.6B with decision heads for structured outputs.
-- **Multiple states and questions in one forward.** Batch independent decisions together.
-- **Dynamic Choice.** Supply **2–255 candidates** and receive a probability for every candidate.
-- **Boolean decisions.** Receive the probability that a complete proposition is true.
-- **Ordered Score.** Supply **2–10 levels** and receive the level distribution and expected score.
-- **Complete distributions.** Use the same output for ranking, greedy selection, or probability sampling.
-- **Zero output decoding.** Read decisions directly from a forward pass.
-- **Persistent serving.** Load a checkpoint once and reuse it across requests.
+## Dataset scale and model
 
-Measured in the running service: **6 states · 18 questions · 44 candidate paths · 1 backbone forward**.
+**18,760 decision questions per target variant, including 16,333 ViZDoom questions.** The matched hard-target and soft-target variants cover the same questions across train, dev, calibration, test and OOD.
 
-## Larger games and calibrated decisions
-
-- **Full-size environments:** 8×8, 16×16, 32×32, and 50×50 mazes, four topologies, multiple positions per map, and configurable larger sizes.
-- **Local judgments + code planning:** matched 5×5 observations, four parallel safety judgments, movement memory, and model-guided exploration.
-- **Snake dynamics:** reproducible food generation, body growth, collision rules, tail movement, dynamic action candidates, and safety questions.
-- **Probability learning:** observed-event datasets, CE/Brier training, paired proper-reward learning, exact gradient checks, and completed Qwen3-0.6B runs.
-- **Verified evaluation:** map-separated data, frozen game cohorts, real model execution, and independent trajectory replay.
-
-The local safety model reaches **77.84% accuracy on test questions** and **76.56% on 50×50 OOD questions**. The probability-learning pilot's paired proper-reward arm reaches **0.11844 test / 0.06202 OOD distribution error**, measured as the sum of squared differences from the simulator's event probabilities.
-
-[Atomic planning](docs/ATOMIC_PLANNING.md) · [Scaled-game pipeline](docs/SCALED_GAMES.md) · [RLCD implementation and results](docs/RLCD_EXPERIMENT.md) · [Input contract](docs/TYPESAFE_CONTRACT.md) · [Game results](docs/DEVELOPMENT_RESULTS.md)
-
-## Earlier 40-map navigation benchmark
-
-**Controller: T=1 probability sampling.** The full benchmark contains 20 test maps and 20 OOD maps.
-
-| System | 4×4 test | 6×6 OOD |
+| Task | All five splits | Training split |
 |---|---:|---:|
-| **NanoJev** | **19/20 — 95%** | **18/20 — 90%** |
-| [Jev](https://typesafe.ai/blog/introducing-system-one-models-and-jev) | 20/20 — 100% | 19/20 — 95% |
-| Untuned Qwen3-0.6B | 7/20 — 35% | 3/20 — 15% |
+| **ViZDoom Predict Position** | **11,173** | **6,788** |
+| **ViZDoom Basic** | **5,160** | **3,054** |
+| Maze | 1,469 | 653 |
+| Snake | 958 | 403 |
+| **Total per variant** | **18,760** | **10,898** |
 
-[Earlier comparison viewer](web/comparison.html) · [Complete benchmark results](research/nanojev_comparison_public.json)
+**Expert gameplay:** the package includes **896 Predict Position episodes with 17,498 recorded decisions**, including 512 episodes assigned to training. It also contains the original mixed-task inputs, hard/soft targets, evaluation trajectories and replay checks.
 
-## How it works
+Of the 10,898 stored training questions, **10,893** pass the target-validity filter. Existing Maze, Snake and Basic splits are preserved.
 
-Each decision is defined by a **state**, a **question**, and its **candidate set**. Every candidate path carries the relevant input into the backbone. Shared decision heads return a distribution over the candidates supplied for that question.
+### Release version and training run
 
-Choice uses a shared scalar head and set attention. Boolean uses a single-path sigmoid. Score evaluates its ordered level descriptions and returns their probability-weighted expectation.
+**`unified-games-v1` packages the step-400 checkpoint from the `hard_lr1e5` training run.** Both names refer to the same selected model used across the four demos.
 
-1. **Build queries.** Generate states, questions, candidate descriptions, and target distributions.
-2. **Organize data.** Keep related maps, rules, and their variations in the same split.
-3. **Train.** Initialize Qwen3-0.6B, warm up the decision heads, and train with complete-question distribution losses.
-4. **Evaluate.** Measure probability quality and execute game controllers with recorded actions.
-5. **Serve and visualize.** Reuse a persistent model endpoint and replay complete trajectories in the browser.
+| Name | Meaning | When to use it |
+|---|---|---|
+| **`unified-games-v1`** | Hugging Face release tag identifying the matching model and dataset snapshots. | Download with `revision="unified-games-v1"`. |
+| **`hard_lr1e5`** | Training experiment: hard (one-hot) action targets for Predict Position, backbone learning rate `1e-5`, decision-head learning rate `1e-4`. | Inspect training configs, logs and experiment comparisons. |
 
-[Complete pipeline commands](research/pipeline_runbook.md)
+The shared model is trained with complete-question cross entropy. Updates mix Maze, Snake, Basic and Predict Position with weights **1/3, 1/3, 1/6, 1/6**.
 
-## Quick start: side-by-side replay
+**Hugging Face release complete:** the model and complete dataset are uploaded and verified as `unified-games-v1`. Both release tags resolve to their recorded snapshots; every uploaded file passes remote identity checks.
 
-The interactive replay runs with Python's built-in HTTP server:
+The model and dataset are public and can be downloaded without signing in.
+
+## Quick start
 
 ```bash
 git clone https://github.com/TianyuCodings/NanoJev.git
 cd NanoJev
-python3 -m http.server 8080 --bind 127.0.0.1 --directory web
+python -m pip install -r requirements-toy.txt huggingface_hub
 ```
 
-Open **http://127.0.0.1:8080/side-by-side.html** for the three-panel Snake and maze comparison. The dark arcade remains at **http://127.0.0.1:8080/arcade.html**, and the earlier benchmark viewer at **http://127.0.0.1:8080/comparison.html**.
-
-## Download the showcase models
-
-| Use | Checkpoint in [C-Tianyu/NanoJev](https://huggingface.co/C-Tianyu/NanoJev/tree/main/variants) |
-|---|---|
-| **50×50 maze demo** | `variants/local_atomic_seed17` |
-| **Snake demo** | `variants/games_gold_seed17` |
-| Full-map comparison | `variants/games_api_seed17` |
-| Calibrated-decision experiments | `variants/events_ce_seed17`, `variants/events_brier_seed17`, `variants/events_paired_seed17` |
-
-```python
-from pathlib import Path
-from huggingface_hub import snapshot_download
-
-variant = "local_atomic_seed17"  # Select "games_gold_seed17" for Snake.
-snapshot = snapshot_download(
-    repo_id="C-Tianyu/NanoJev",
-    allow_patterns=[f"variants/{variant}/*"],
-)
-checkpoint_dir = Path(snapshot) / "variants" / variant
-```
-
-The [game data package](https://huggingface.co/datasets/C-Tianyu/NanoJev-Data/tree/main/games_v4) contains the matching training splits, frozen evaluation inputs, and all six Snake controller recordings. [Download, verify, and reproduce the games](docs/GAME_RELEASE.md).
-
-## Download and run the model
-
-The [model](https://huggingface.co/C-Tianyu/NanoJev) and [dataset](https://huggingface.co/datasets/C-Tianyu/NanoJev-Data) are public. Prepare a CUDA environment with the recorded [Python dependencies](requirements-toy.txt):
-
-```bash
-python -m pip install -r requirements-toy.txt
-```
-
-Download the base release checkpoint and dataset. The root checkpoint is the initialization model and the earlier navigation baseline:
+Download the current checkpoint and data:
 
 ```python
 from huggingface_hub import snapshot_download
 
 snapshot_download(
-    repo_id="C-Tianyu/NanoJev", local_dir="checkpoints/NanoJev",
+    repo_id="C-Tianyu/NanoJev",
+    revision="unified-games-v1",
+    local_dir="checkpoints/NanoJev-unified",
     allow_patterns=["best.safetensors", "config.json", "tokenizer/*", "backbone_config/*"],
 )
 snapshot_download(
-    repo_id="C-Tianyu/NanoJev-Data", repo_type="dataset", local_dir="data/NanoJev",
+    repo_id="C-Tianyu/NanoJev-Data",
+    repo_type="dataset",
+    revision="unified-games-v1",
+    local_dir="data/NanoJev-unified",
 )
 ```
 
-Start the persistent service:
+Start inference in a CUDA environment:
 
 ```bash
 python scripts/serve_decisions.py \
-  --checkpoint-dir checkpoints/NanoJev \
-  --web-root web --port 8765
+  --checkpoint-dir checkpoints/NanoJev-unified \
+  --web-root web --port 8765 --disable-native-triton
 ```
 
-Open **http://127.0.0.1:8765**. The service loads the model once and accepts repeated batches through **`POST /api/evaluate`**.
+The service loads the model once. Send state/question batches to **`POST http://127.0.0.1:8765/api/evaluate`**.
 
-The [pipeline runbook](research/pipeline_runbook.md) covers data generation, training, evaluation, checkpoint creation, and continuing from the downloaded model and data.
+To explore the recorded games locally:
+
+```bash
+python3 -m http.server 8080 --bind 127.0.0.1 --directory web
+```
+
+Open **http://127.0.0.1:8080/dev/?autoplay=1** for ViZDoom Basic or **http://127.0.0.1:8080/dev/side-by-side.html?autoplay=1#maze** for Maze.
+
+## Development notes
+
+[Release contents and reproduction](docs/UNIFIED_DEVELOPMENT_RELEASE.md) · [Input contract](docs/TYPESAFE_CONTRACT.md) · [Unified environments](docs/UNIFIED_GAMES.md) · [Atomic planning](docs/ATOMIC_PLANNING.md) · [Predict Position replay](docs/PREDICT_POSITION_DEMO.md) · [Shooting replay](docs/SHOOTING_DEMO.md)
 
 ## Roadmap
 
-- [x] **Scale up data** — Add larger mazes, Snake, atomic questions, and observed-event datasets.
-- [x] **Calibrated reward prototype** — Implement and test paired proper-reward learning with CE/Brier controls.
-- [ ] **RLCD expansion** — Add broader semantic tasks, stochastic long-horizon events, and additional model seeds.
-- [ ] **Structured input support** — Version the encoder for structured instructions, criteria, and the native Noul interface.
+- [x] One unified checkpoint for Maze, Snake and both shooting tasks.
+- [x] 50×50 Maze, long Snake games and synchronized three-model browser replays.
+- [x] Mixed-task SFT, reproducible data splits and independently replayed evaluation.
+- [ ] RLCD post-training for broader long-horizon tasks.
+- [ ] Shared-prefix inference and larger candidate batches.
+- [ ] Broader shooting scenarios and structured input support.
